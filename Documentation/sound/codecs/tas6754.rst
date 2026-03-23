@@ -1,0 +1,1222 @@
+======================================
+TAS6754-Q1 Codec Mixer Controls
+======================================
+
+This document describes the ALSA mixer controls for the TAS6754-Q1
+4-channel automotive amplifier codec driver.
+
+For device tree bindings, see:
+Documentation/devicetree/bindings/sound/ti,tas6754.yaml
+
+DSP Signal Path & Mode
+=======================
+
+DSP Signal Path Mode
+--------------------
+
+:Description: Signal processing mode selection
+:Type: Enumerated
+:Default: Normal
+:Options:
+  - **Normal**: Full DSP features with standard signal delay
+  - **LLP**: Low Latency Path - bypasses DSP processing for ~70% latency
+    reduction. Enables standalone audio path with DSP protection features
+    unavailable.
+  - **FFLP**: Full Feature Low Latency Path - reduced latency with subset
+    of DSP features available.
+
+Volume Controls
+===============
+
+Analog Playback Volume
+----------------------
+
+:Description: Analog gain control for channels 1-4
+:Type: Volume (TLV)
+:Default: 0dB
+:Range: -15.5dB to 0dB (0.5dB steps, 31 steps total)
+:Register: ANALOG_GAIN_CH1_CH2, ANALOG_GAIN_CH3_CH4
+
+Analog Gain Ramp Step
+---------------------
+
+:Description: Anti-pop ramp step duration for analog gain transitions
+:Type: Enumerated
+:Default: 15us
+:Options:
+  - 15us
+  - 60us
+  - 200us
+  - 400us
+
+CHx Digital Playback Volume
+----------------------------
+
+:Description: Per-channel digital volume control (x = 1, 2, 3, 4)
+:Type: Volume (TLV)
+:Default: 0dB
+:Range: -103dB to 24dB (0.5dB steps)
+:Bounds: Register values locked to 0x30 (minimum) to 0xFF (maximum)
+
+Volume Ramp Down Rate
+----------------------
+
+:Description: Update frequency during mute transition
+:Type: Enumerated
+:Default: 16 FS
+:Options:
+  - 4 FS
+  - 16 FS
+  - 32 FS
+  - Instant
+
+Volume Ramp Down Step
+----------------------
+
+:Description: Decibel change per update during mute
+:Type: Enumerated
+:Default: 0.5dB
+:Options:
+  - 4dB
+  - 2dB
+  - 1dB
+  - 0.5dB
+
+Volume Ramp Up Rate
+--------------------
+
+:Description: Update frequency during unmute transition
+:Type: Enumerated
+:Default: 16 FS
+:Options:
+  - 4 FS
+  - 16 FS
+  - 32 FS
+  - Instant
+
+Volume Ramp Up Step
+--------------------
+
+:Description: Decibel change per update during unmute
+:Type: Enumerated
+:Default: 0.5dB
+:Options:
+  - 4dB
+  - 2dB
+  - 1dB
+  - 0.5dB
+
+CH1/2 Volume Combine
+--------------------
+
+:Description: Links volume controls for channels 1 and 2
+:Type: Enumerated
+:Default: Independent
+:Options:
+  - Independent
+  - CH2 follows CH1
+  - CH1 follows CH2
+
+CH3/4 Volume Combine
+--------------------
+
+:Description: Links volume controls for channels 3 and 4
+:Type: Enumerated
+:Default: Independent
+:Options:
+  - Independent
+  - CH4 follows CH3
+  - CH3 follows CH4
+
+Auto Mute & Silence Detection
+==============================
+
+CHx Auto Mute Switch
+--------------------
+
+:Description: Enables automatic muting on zero-signal detection (x = 1, 2, 3, 4)
+:Type: Boolean Switch
+:Default: Disabled (0)
+
+Auto Mute Combine Switch
+-------------------------
+
+:Description: Coordinated muting behavior across all channels
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Behavior:
+  - **Disabled**: Channels mute independently when their individual
+    signal is zero
+  - **Enabled**: All channels mute together only when all channels
+    detect zero signal; unmute when any channel has non-zero signal
+
+CHx Auto Mute Time
+------------------
+
+:Description: Duration of zero signal before muting triggers (x = 1, 2, 3, 4)
+:Type: Enumerated
+:Default: 11.5ms
+:Options:
+  - 11.5ms
+  - 53ms
+  - 106.5ms
+  - 266.5ms
+  - 535ms
+  - 1065ms
+  - 2665ms
+  - 5330ms
+:Note: Values shown are for 96kHz sampling rate. At 48kHz, times are doubled.
+
+Clock & EMI Management
+======================
+
+Spread Spectrum Mode
+--------------------
+
+:Description: Frequency dithering mode to reduce peak EMI
+:Type: Enumerated
+:Default: Disabled
+:Options:
+  - Disabled
+  - Triangle
+  - Random
+  - Triangle and Random
+
+SS Triangle Range
+-----------------
+
+:Description: Frequency deviation range for Triangle spread spectrum mode
+:Type: Enumerated
+:Default: 6.5%
+:Options:
+  - 6.5%
+  - 13.5%
+  - 5%
+  - 10%
+:Note: Only applies when Spread Spectrum Mode includes Triangle
+
+SS Random Range
+---------------
+
+:Description: Frequency deviation range for Random spread spectrum mode
+:Type: Enumerated
+:Default: 0.83%
+:Options:
+  - 0.83%
+  - 2.50%
+  - 5.83%
+  - 12.50%
+  - 25.83%
+:Note: Only applies when Spread Spectrum Mode includes Random
+
+SS Random Dwell Range
+---------------------
+
+:Description: Dwell time range for Random spread spectrum mode
+:Type: Enumerated
+:Default: 1/FSS to 2/FSS
+:Options:
+  - 1/FSS to 2/FSS
+  - 1/FSS to 4/FSS
+  - 1/FSS to 8/FSS
+  - 1/FSS to 15/FSS
+:Note: FSS is the spread spectrum modulation frequency. Only applies
+  when Spread Spectrum Mode includes Random.
+
+SS Triangle Dwell Min
+---------------------
+
+:Description: Minimum dwell time for Triangle spread spectrum (raw value)
+:Type: Integer
+:Default: 0
+:Range: 0 to 15
+
+SS Triangle Dwell Max
+---------------------
+
+:Description: Maximum dwell time for Triangle spread spectrum (raw value)
+:Type: Integer
+:Default: 0
+:Range: 0 to 15
+
+Hardware Protection
+===================
+
+OTSD Auto Recovery Switch
+--------------------------
+
+:Description: Enables automatic recovery from over-temperature shutdown
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: When disabled, manual intervention is required after OTSD events
+
+Overcurrent Limit Level
+------------------------
+
+:Description: Current limit trip point sensitivity
+:Type: Enumerated
+:Default: Level 4 (least sensitive)
+:Options:
+  - Level 4 (least sensitive)
+  - Level 3
+  - Level 2
+  - Level 1 (most sensitive)
+:Note: Actual trip current thresholds depend on PVDD voltage and load
+  impedance. See TRM for details.
+
+CHx OTW Threshold
+-----------------
+
+:Description: Over-temperature warning threshold per channel (x = 1, 2, 3, 4)
+:Type: Enumerated
+:Default: >95C
+:Options:
+  - Disabled
+  - >95C
+  - >110C
+  - >125C
+  - >135C
+  - >145C
+  - >155C
+  - >165C
+:Note: Additional global OTW and OTSD events exist at fixed thresholds
+  independent of these per-channel settings.
+
+Temperature and Voltage Monitoring
+===================================
+
+PVDD Sense
+----------
+
+:Name: PVDD Sense
+:Description: Supply voltage sense register
+:Type: Integer (read-only)
+:Range: 0-255
+:Conversion: value × 0.19V
+:Note: Returns 0 when no supply detected (expected during power-off).
+  PVDD operating range is 4V-20V (UVLO at 4V, OVLO at 20V).
+
+Global Temperature
+------------------
+
+:Name: Global Temperature
+:Description: Global die temperature sense register
+:Type: Integer (read-only)
+:Range: 0-255
+:Conversion: (value × 0.5°C) - 50°C
+:Example: value=140 → (140 × 0.5) - 50 = 20°C
+
+CHx Temperature Range
+---------------------
+
+:Name: CH1/CH2/CH3/CH4 Temperature Range
+:Description: Per-channel temperature range indicator
+:Type: Integer (read-only)
+:Range: 0-3
+:Mapping:
+  - 0 = <80°C
+  - 1 = 80-100°C
+  - 2 = 100-120°C
+  - 3 = >120°C
+
+Load Diagnostics
+================
+
+Overview
+--------
+
+The TAS6754-Q1 provides three types of load diagnostic capabilities for
+comprehensive speaker protection and system verification:
+
+**DC Load Diagnostics (DC LDG)**
+  Performs DC resistance measurements to detect electrical faults including:
+
+  - **S2G** (Short-to-Ground): Output shorted to GND rail
+  - **S2P** (Short-to-Power): Output shorted to PVDD rail
+  - **OL** (Open Load): No speaker connected or broken wire
+  - **SL** (Shorted Load): Impedance below configurable threshold (0.5-5Ω)
+
+  DC diagnostics run automatically at device initialization (unless fast boot
+  mode is enabled) and can be triggered manually or automatically after fault
+  conditions.
+
+**AC Load Diagnostics (AC LDG)**
+  Measures complex AC impedance at 18.75kHz to detect capacitive loads and
+  tweeter configurations. Provides both real and imaginary impedance components
+  for each channel.
+
+**Real-Time Load Diagnostics (RTLDG)**
+  Continuously monitors speaker impedance during playback using a 6Hz pilot
+  tone. Detects open load and shorted load faults without interrupting audio.
+  Available only in Normal DSP mode at 48kHz/96kHz sample rates.
+
+Fast Boot Mode
+~~~~~~~~~~~~~~
+
+The TAS6754 automatically runs DC load diagnostics at device initialization,
+increasing boot time. Enable fast boot mode to bypass this for faster system
+startup.
+
+**Device Tree Configuration:**
+
+::
+
+  codec: tas6754@70 {
+      compatible = "ti,tas6754";
+      reg = <0x70>;
+      ti,fast-boot;  /* Skip DC diagnostics at initialization */
+  };
+
+**Behavior (TRM Section 4.3.5.1.1):**
+
+When ``ti,fast-boot`` is present in the device tree, the driver:
+
+1. Sets both LDG_ABORT and LDG_BYPASS bits at initialization
+2. Skips DC load diagnostics at startup
+3. Configures device registers during the bypass period
+4. Transitions channels to Hi-Z state
+5. Clears both bits to re-enable automatic diagnostics for runtime fault recovery
+
+**Note**: Fast boot skips only the initial boot-time diagnostics. Automatic
+diagnostics after fault conditions remain enabled for proper fault recovery.
+Manual diagnostics can be triggered at any time using the DC LDG Trigger control.
+
+DC Load Diagnostics
+-------------------
+
+DC LDG Trigger
+~~~~~~~~~~~~~~
+
+:Description: Triggers manual DC resistance measurement with automatic abort
+  sequence to handle any ongoing automatic diagnostics
+:Type: Boolean (write-only trigger)
+:Default: N/A
+:Requirements: Channels must not be in active playback or capture
+
+**Manual Trigger Sequence:**
+
+When triggered, the driver performs a controlled diagnostic sequence:
+
+1. **Abort Phase**: Sets LDG_ABORT and LDG_BYPASS bits to stop any ongoing
+   automatic diagnostics (from boot or auto-after-fault). Polls STATE_REPORT
+   registers until all channels exit LOAD_DIAG state (timeout: 100ms).
+
+2. **Synchronization Phase**: Transitions all channels to Hi-Z state, then to
+   LOAD_DIAG state. Polls STATE_REPORT to confirm transition (timeout: 50ms).
+
+3. **Diagnostic Phase**: Clears ABORT and BYPASS bits to initiate manual
+   diagnostics. Device performs DC measurements on all channels (~200-300ms).
+
+4. **Completion Phase**: Polls STATE_REPORT until channels reach SLEEP state,
+   indicating diagnostics complete. Both SLEEP (channels passed) and FAULT
+   (channels with detected faults) states indicate completion.
+
+5. **Cleanup Phase**: Restores channels to Hi-Z state and clears ABORT/BYPASS
+   bits to re-enable automatic diagnostics.
+
+:Note: Results available in DC LDG Report controls. The trigger blocks until
+  diagnostics complete or timeout occurs. Partial channel failures (e.g., some
+  channels with no speakers connected) are normal and do not indicate trigger
+  failure.
+
+DC LDG Auto Diagnostics Switch
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Enables/disables automatic DC load diagnostics after fault conditions
+:Type: Boolean Switch
+:Default: Enabled (1)
+:Values:
+  - 0 = Disabled: DC diagnostics only run when manually triggered via DC LDG Trigger
+  - 1 = Enabled: Device automatically runs DC load diagnostics after fault recovery
+
+:Note: When enabled, affected channels automatically run DC load diagnostics after
+  fault recovery and attempt to return to the previous state (Hi-Z or PLAY). If a
+  fault persists, the channel retests approximately every 750ms until the fault is
+  eliminated or this switch is disabled.
+
+DC LDG SLOL Ramp Time
+~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Ramp time for shorted load and open load diagnostics
+:Type: Enumerated
+:Default: "15 ms"
+:Register: 0xB2 bits [7:6]
+:Values:
+  - "15 ms"
+  - "30 ms"
+  - "10 ms"
+  - "20 ms"
+
+:Note: Controls the voltage ramp time during short and open load detection phase
+
+DC LDG SLOL Settling Time
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Settling time for shorted load and open load diagnostics
+:Type: Enumerated
+:Default: "10 ms"
+:Register: 0xB2 bits [5:4]
+:Values:
+  - "10 ms"
+  - "5 ms"
+  - "20 ms"
+  - "15 ms"
+
+:Note: Controls the settling time after ramping before measurement during short and
+  open load detection
+
+DC LDG S2PG Ramp Time
+~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Ramp time for short-to-power and short-to-ground diagnostics
+:Type: Enumerated
+:Default: "5 ms"
+:Register: 0xB2 bits [3:2]
+:Values:
+  - "5 ms"
+  - "2.5 ms"
+  - "10 ms"
+  - "15 ms"
+
+:Note: Controls the voltage ramp time during short-to-power and short-to-ground
+  detection phase
+
+DC LDG S2PG Settling Time
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Settling time for short-to-power and short-to-ground diagnostics
+:Type: Enumerated
+:Default: "10 ms"
+:Register: 0xB2 bits [1:0]
+:Values:
+  - "10 ms"
+  - "5 ms"
+  - "20 ms"
+  - "30 ms"
+
+:Note: Controls the settling time after ramping before measurement during
+  short-to-power and short-to-ground detection
+
+DC LDG Result
+~~~~~~~~~~~~~
+
+:Description: Overall DC diagnostic result status register
+:Type: Read-only integer
+:Default: N/A
+:Range: 0x00 to 0xFF
+:Bit Encoding:
+  - Bits 7-4: Line output detection result (see CHx LO LDG Result)
+  - Bits 3-0: DC diagnostic pass/fail per channel (1=pass, 0=fail)
+
+    - Bit 3: CH1 pass/fail
+    - Bit 2: CH2 pass/fail
+    - Bit 1: CH3 pass/fail
+    - Bit 0: CH4 pass/fail
+
+CHx DC LDG Report
+~~~~~~~~~~~~~~~~~
+
+:Description: DC diagnostic fault status per channel (x = 1, 2, 3, 4)
+:Type: Read-only integer (4-bit value)
+:Default: N/A
+:Range: 0x0 to 0xF
+:Bit Encoding:
+
+  ======  ============  =============================================
+  Bit     Fault Type    Description
+  ======  ============  =============================================
+  [3]     S2G           Short-to-Ground (1=detected, 0=not detected)
+  [2]     S2P           Short-to-Power (1=detected, 0=not detected)
+  [1]     OL            Open Load (1=detected, 0=not detected)
+  [0]     SL            Shorted Load (1=detected, 0=not detected)
+  ======  ============  =============================================
+
+:Common Values:
+  - **0x0**: No faults detected (normal operation)
+  - **0x1**: Shorted load (impedance below threshold)
+  - **0x2**: Open load (no speaker connected or broken wire)
+  - **0x4**: Short-to-power (output shorted to PVDD rail)
+  - **0x8**: Short-to-ground (output shorted to GND)
+  - Multiple bits set indicate multiple simultaneous faults
+
+:Note: SL threshold is configurable via CHx DC LDG SL Threshold control
+
+CHx DC LDG SL Threshold
+~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Shorted-load detection threshold per channel (x = 1, 2, 3, 4)
+:Type: Enumerated
+:Default: 1 Ohm
+:Options:
+  - 0.5 Ohm
+  - 1 Ohm
+  - 1.5 Ohm
+  - 2 Ohm
+  - 2.5 Ohm
+  - 3 Ohm
+  - 3.5 Ohm
+  - 4 Ohm
+  - 4.5 Ohm
+  - 5 Ohm
+:Note: Allows per-channel threshold configuration for different speaker/cable impedances
+
+CHx DC Resistance
+~~~~~~~~~~~~~~~~~
+
+:Description: Measured DC resistance in ohms (x = 1, 2, 3, 4)
+:Type: Read-only float (displayed in ohms)
+:Default: N/A
+:Resolution: 10-bit value, 0.1 ohm per code
+:Range: 0.0 to 102.3 ohms
+
+Line Output Diagnostics
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+CHx LO LDG Switch
+^^^^^^^^^^^^^^^^^
+
+:Description: Enables line output load detection per channel (x = 1, 2, 3, 4)
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: When enabled, if DC diagnostics reports Open Load, the system tests for
+  high-impedance line output load. Channels should be muted during test.
+
+CHx LO LDG Report
+^^^^^^^^^^^^^^^^^
+
+:Description: Line output load detection report per channel (x = 1, 2, 3, 4)
+:Type: Read-only boolean
+:Default: N/A
+:Values:
+  - 0: Line output load not detected
+  - 1: Line output load detected (high-impedance load above open load threshold)
+:Note: Valid after running DC diagnostics with line output detection enabled
+
+AC Load Diagnostics
+-------------------
+
+AC load diagnostics measure complex impedance (real + imaginary components) at
+18.75kHz frequency. This enables detection of capacitive loads, tweeter
+configurations, and complex speaker impedance characteristics that DC diagnostics
+cannot identify.
+
+**Use Cases:**
+
+- Detecting tweeter speakers (high impedance at high frequency)
+- Identifying capacitive coupling in the signal path
+- Characterizing frequency-dependent speaker impedance
+- Verifying crossover network configurations
+
+AC LDG Trigger
+~~~~~~~~~~~~~~
+
+:Description: Triggers AC impedance measurement for all channels
+:Type: Boolean (write-only trigger)
+:Default: N/A
+:Requirements:
+  - Channels must be in SLEEP state (not Hi-Z or PLAY)
+  - DC diagnostics must have completed successfully since last fault
+  - No active playback or capture
+
+**Manual Trigger Sequence:**
+
+Similar to DC LDG Trigger, the driver performs a controlled sequence:
+
+1. **Abort Phase**: Stops any ongoing diagnostics using abort sequence
+2. **Synchronization Phase**: Transitions channels to Hi-Z then LOAD_DIAG state
+3. **Diagnostic Phase**: Device performs AC impedance measurements (~500ms per
+   channel, ~2 seconds total for 4 channels)
+4. **Completion Phase**: Polls STATE_REPORT until all channels complete
+5. **Cleanup Phase**: Restores channels to Hi-Z state
+
+:Note: AC diagnostics take significantly longer than DC diagnostics (~2 seconds
+  vs ~300ms). If a fault occurs during AC diagnostics, DC diagnostics must be
+  run again before AC can be repeated (TRM Section 4.3.5.2.1). The trigger
+  blocks until diagnostics complete or timeout occurs (max 2 seconds).
+
+CHx AC LDG Real
+~~~~~~~~~~~~~~~
+
+:Description: Real component of measured AC impedance (x = 1, 2, 3, 4)
+:Type: Read-only integer
+:Default: N/A
+:Range: 0x00 to 0xFF (8-bit signed value)
+
+CHx AC LDG Imag
+~~~~~~~~~~~~~~~
+
+:Description: Imaginary component of measured AC impedance (x = 1, 2, 3, 4)
+:Type: Read-only integer
+:Default: N/A
+:Range: 0x00 to 0xFF (8-bit signed value)
+
+AC DIAG GAIN
+~~~~~~~~~~~~
+
+:Description: AC diagnostic gain control for measurement resolution
+:Type: Boolean Switch
+:Default: 1 (Gain 8, 0.1Ω/code resolution)
+:Register: 0xB5 bit [4]
+:Values:
+  - 0 = Gain 1: 0.8 ohm/code resolution
+  - 1 = Gain 8: 0.1 ohm/code resolution (recommended for loads < 8Ω)
+
+:Note: Controls the resolution of AC load diagnostics measurements. Higher gain
+  (value 1) provides finer resolution for low-impedance speakers. This setting
+  affects the scaling of CHx AC LDG Real and CHx AC LDG Imag readout values, as
+  well as the Tweeter Detect Threshold resolution. TRM recommends setting to 1
+  (Gain 8) for load impedances below 8Ω.
+
+AC LDG Test Frequency
+~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Test signal frequency for AC load diagnostics
+:Type: Integer
+:Default: 200 (0xC8, 18.75 kHz)
+:Range: 0x01 to 0xFF (0x00 is reserved)
+:Register: 0xB8 bits [7:0]
+:Formula: Frequency = 93.75 Hz × register_value
+:Examples:
+  - 0x01 (1): 93.75 Hz
+  - 0x02 (2): 187.5 Hz
+  - 0xC8 (200): 18.75 kHz (default)
+  - 0xFF (255): 23.91 kHz
+
+:Note: Configures the AC stimulus signal frequency used during impedance measurements.
+  The device drives a low-level 10mA output current at this frequency through the load.
+  The frequency-dependent impedance response enables detection of capacitive loads,
+  tweeter configurations, and crossover network characteristics that DC diagnostics
+  cannot identify. The default 18.75 kHz frequency is optimized for typical automotive
+  speaker systems.
+
+Speaker Protection & Detection
+-------------------------------
+
+Tweeter Detection Switch
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Enables automatic tweeter detection using magnitude comparator
+:Type: Boolean Switch
+:Default: Enabled (1)
+:Note: Inverted logic - control value 0 = enabled, 1 = disabled
+
+Tweeter Detect Threshold
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Magnitude threshold for tweeter detection judgment
+:Type: Integer
+:Default: 0
+:Range: 0x00 to 0xFF
+:Resolution:
+  - 0.8 ohm/code when AC DIAG GAIN = 0
+  - 0.1 ohm/code when AC DIAG GAIN = 1
+
+CHx Tweeter Detect Report
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+:Description: Read-only tweeter detection result (x = 1, 2, 3, 4)
+:Type: Read-only boolean
+:Default: N/A
+:Values:
+  - 0: No tweeter detected on channel
+  - 1: Tweeter detected on channel
+
+DSP Protection Features
+=======================
+
+**Feature Availability: Unavailable in LLP, available in Normal & FFLP modes**
+
+Thermal Foldback Switch
+------------------------
+
+:Description: Enables dynamic gain reduction based on die temperature
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: Also known as thermal gain compression
+
+PVDD Foldback Switch
+--------------------
+
+:Description: Enables automatic gain limiting when supply voltage drops
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: Also known as Automatic Gain Limiter (AGL). Maintains consistent
+  dynamic range as PVDD varies to prevent clipping.
+
+DC Blocker Bypass Switch
+-------------------------
+
+:Description: Bypasses the DC-blocking high-pass filter
+:Type: Boolean Switch
+:Default: Not bypassed (0)
+:Note: DC blocking filter is enabled by default to protect speakers
+
+Clip Detect Switch
+------------------
+
+:Description: Enables DSP-based clip detection with warning signal
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: Supports Pseudo-Analog Clip Detect (PACD) which considers analog
+  gain and supply voltage
+
+Audio SDOUT Switch
+------------------
+
+:Description: Routes post-processed audio signal to SDOUT pin
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Note: When enabled, replaces Vpredict data on SDOUT. Requires I2S or
+  TDM mode (not supported in Left-justified or DSP mode formats).
+
+Real-Time Load Diagnostics
+===========================
+
+**Feature Availability: Normal mode only (unavailable in both FFLP and LLP)**
+
+CHx RTLDG Switch
+----------------
+
+:Description: Enables real-time impedance monitoring during playback (x = 1, 2, 3, 4)
+:Type: Boolean Switch
+:Default: Disabled (0)
+:Requirements:
+  - Sample rate: 48kHz or 96kHz (not supported at 192kHz)
+  - Current sense must be enabled
+  - Pilot tone must be enabled (default: 6Hz at -36dBFS)
+:Note: Detects open load (OL) and short load (SL) conditions during audio operation
+
+RTLDG Clip Mask Switch
+-----------------------
+
+:Description: Suppresses RTLDG impedance updates during audio clipping
+:Type: Boolean Switch
+:Default: Enabled (1)
+:Note: Prevents false diagnostics during clipping events
+
+ISENSE Calibration Switch
+--------------------------
+
+:Description: Enables current sense calibration for accurate RTLDG measurements
+:Type: Boolean Switch
+:Default: Disabled (0)
+
+RTLDG Open Load Threshold
+--------------------------
+
+:Description: Configurable threshold for open load detection
+:Type: DSP coefficient (extended control)
+:Default: Device-specific (see TRM)
+:Location: DSP book 0x8C, page 0x22
+
+RTLDG Short Load Threshold
+---------------------------
+
+:Description: Configurable threshold for short load detection
+:Type: DSP coefficient (extended control)
+:Default: Device-specific (see TRM)
+:Location: DSP book 0x8C, page 0x22
+
+CHx RTLDG Impedance
+-------------------
+
+:Description: Real-time impedance measurement (x = 1, 2, 3, 4)
+:Type: Read-only float (displayed in ohms)
+:Default: N/A
+:Update Rate: Continuous during playback (when RTLDG enabled)
+:Requirements: Updates only during PLAY state at 48/96kHz with pilot tone active
+:Note: Holds stale/zero values when channels are in SLEEP/MUTE/Hi-Z states
+
+RTLDG Fault Latched
+-------------------
+
+:Description: Latched real-time load diagnostic fault status register
+:Type: Read-only integer (latched)
+:Default: N/A
+:Range: 0x00 to 0xFF
+:Bit Encoding:
+
+  ======  ===========  ===================================================
+  Bit     Fault Type   Description
+  ======  ===========  ===================================================
+  [7]     CH1 SL       CH1 Shorted Load fault (1=detected, 0=not detected)
+  [6]     CH2 SL       CH2 Shorted Load fault (1=detected, 0=not detected)
+  [5]     CH3 SL       CH3 Shorted Load fault (1=detected, 0=not detected)
+  [4]     CH4 SL       CH4 Shorted Load fault (1=detected, 0=not detected)
+  [3]     CH1 OL       CH1 Open Load fault (1=detected, 0=not detected)
+  [2]     CH2 OL       CH2 Open Load fault (1=detected, 0=not detected)
+  [1]     CH3 OL       CH3 Open Load fault (1=detected, 0=not detected)
+  [0]     CH4 OL       CH4 Open Load fault (1=detected, 0=not detected)
+  ======  ===========  ===================================================
+
+:Common Values:
+  - **0x00**: No faults detected during playback
+  - **0x01**: CH4 open load detected
+  - **0x10**: CH4 shorted load detected
+  - **0x88**: CH1 and CH2 both shorted load detected
+  - Multiple bits set indicate multiple channel/fault conditions
+
+:Note: Latching fault indicator. Reading the register clears all latched status bits.
+  When fault detected, affected channel enters fault state and requires manual recovery
+  by clearing the fault (write 1 to CLEAR FAULT bit in RESET register).
+
+Feature Availability Summary
+=============================
+
+By DSP Mode
+-----------
+
+**All Modes (Normal, FFLP, LLP)**:
+  - Volume controls (analog and digital)
+  - Auto mute and silence detection
+  - Hardware protection (OTW, OTSD, overcurrent)
+  - Clock and EMI management (spread spectrum)
+  - DC load diagnostics (S2G, S2P, OL, SL detection with configurable thresholds)
+  - Line output diagnostics (high-impedance load detection)
+  - AC load diagnostics
+  - Tweeter detection
+
+**Normal & FFLP only** (unavailable in LLP):
+  - Thermal Foldback
+  - PVDD Foldback
+  - DC Blocker Bypass
+  - Clip Detect
+  - Audio SDOUT
+
+**Normal mode only** (unavailable in FFLP and LLP):
+  - Real-Time Load Diagnostics (RTLDG)
+  - RTLDG Impedance readback
+  - RTLDG Fault Latched register (OL/SL faults during playback)
+
+By Sample Rate
+--------------
+
+**RTLDG Support**:
+  - 48kHz: Supported
+  - 96kHz: Supported
+  - 192kHz: Not supported
+
+**Vpredict Output (SDOUT)**:
+  - 48kHz: Available
+  - 96kHz: Not available
+  - 192kHz: Not available
+
+Usage Examples
+==============
+
+Setting DSP Mode
+----------------
+
+::
+
+  # Switch to Low Latency Path
+  amixer -c TAS6754 cset name='DSP Signal Path Mode' LLP
+
+  # Return to Normal mode with full features
+  amixer -c TAS6754 cset name='DSP Signal Path Mode' Normal
+
+Triggering Load Diagnostics
+----------------------------
+
+::
+
+  # Ensure channels are in SLEEP state first
+  # (implementation-specific, typically done via DAPM)
+
+  # Configure shorted-load threshold (example: 2 Ohm for CH1)
+  amixer -c TAS6754 cset name='CH1 DC LDG SL Threshold' '2 Ohm'
+
+  # Enable line output detection on CH1
+  amixer -c TAS6754 cset name='CH1 LO LDG Switch' 1
+
+  # Trigger DC diagnostics
+  amixer -c TAS6754 cset name='DC LDG Trigger' 1
+
+  # Read overall result register (includes pass/fail and LO detection)
+  amixer -c TAS6754 cget name='DC LDG Result'
+
+  # Read per-channel fault status (4-bit value)
+  amixer -c TAS6754 cget name='CH1 DC LDG Report'
+  # Returns 0x0 = no faults
+  #         0x1 = shorted load (SL)
+  #         0x2 = open load (OL)
+  #         0x4 = short-to-power (S2P)
+  #         0x8 = short-to-ground (S2G)
+
+  # Read DC resistance measurement
+  amixer -c TAS6754 cget name='CH1 DC Resistance'
+
+  # Check line output detection result
+  amixer -c TAS6754 cget name='CH1 LO LDG Result'
+
+  # Trigger AC diagnostics
+  amixer -c TAS6754 cset name='AC LDG Trigger' 1
+
+  # Check tweeter detection
+  amixer -c TAS6754 cget name='CH1 Tweeter Detect Report'
+
+Enabling Real-Time Diagnostics
+-------------------------------
+
+::
+
+  # Prerequisites: Normal mode, 48/96kHz sample rate
+  amixer -c TAS6754 cset name='DSP Signal Path Mode' Normal
+
+  # Enable RTLDG on all channels
+  amixer -c TAS6754 cset name='CH1 RTLDG Switch' 1
+  amixer -c TAS6754 cset name='CH2 RTLDG Switch' 1
+  amixer -c TAS6754 cset name='CH3 RTLDG Switch' 1
+  amixer -c TAS6754 cset name='CH4 RTLDG Switch' 1
+
+  # Enable current sense calibration
+  amixer -c TAS6754 cset name='ISENSE Calibration Switch' 1
+
+  # Start playback, then monitor impedance
+  amixer -c TAS6754 cget name='CH1 RTLDG Impedance'
+
+  # Check for latched fault conditions (8-bit value)
+  amixer -c TAS6754 cget name='RTLDG Fault Latched'
+  # Bits [7:4] = SL faults (CH1-CH4), Bits [3:0] = OL faults (CH1-CH4)
+  # Returns 0x00 = no faults
+  #         0x80 = CH1 shorted load during playback
+  #         0x08 = CH1 open load during playback
+
+Configuring Volume Ramping
+---------------------------
+
+::
+
+  # Set aggressive mute (fast ramp)
+  amixer -c TAS6754 cset name='Volume Ramp Down Rate' '32 FS'
+  amixer -c TAS6754 cset name='Volume Ramp Down Step' 4dB
+
+  # Set gentle unmute (slow ramp)
+  amixer -c TAS6754 cset name='Volume Ramp Up Rate' '4 FS'
+  amixer -c TAS6754 cset name='Volume Ramp Up Step' 0.5dB
+
+Enabling Spread Spectrum
+-------------------------
+
+::
+
+  # Enable triangle mode with 10% range
+  amixer -c TAS6754 cset name='Spread Spectrum Mode' Triangle
+  amixer -c TAS6754 cset name='SS Triangle Range' '10%'
+
+Troubleshooting
+===============
+
+Load Diagnostics Issues
+-----------------------
+
+**DC LDG Trigger returns -EBUSY**
+  The trigger cannot run during active playback or capture. Stop all audio
+  streams before triggering diagnostics. Use DAPM to ensure channels transition
+  to SLEEP or Hi-Z state.
+
+**DC LDG reports partial failures (some channels fail)**
+  This is normal behavior when some speakers are disconnected or have faults.
+  Check individual channel reports using ``CHx DC LDG Report`` controls:
+
+  - ``0x0`` = No faults (normal)
+  - ``0x1`` = Shorted load (impedance below SL threshold)
+  - ``0x2`` = Open load (no speaker connected)
+  - ``0x4`` = Short-to-power (output shorted to PVDD)
+  - ``0x8`` = Short-to-ground (output shorted to GND)
+
+  Multiple bits set indicate multiple faults. Use ``CHx DC Resistance`` controls
+  to verify measured impedance values.
+
+**AC LDG Trigger fails after fault condition**
+  Per TRM Section 4.3.5.2.1, if a fault occurs during AC diagnostics, DC
+  diagnostics must be run successfully before AC diagnostics can be performed
+  again. Solution::
+
+    # Run DC diagnostics first
+    amixer -c TAS6754 cset name='DC LDG Trigger' 1
+
+    # Verify DC diagnostics passed for channels of interest
+    amixer -c TAS6754 cget name='DC LDG Result'
+
+    # Now AC diagnostics can be run
+    amixer -c TAS6754 cset name='AC LDG Trigger' 1
+
+**AC LDG takes too long (>2 seconds timeout)**
+  AC diagnostics measure all 4 channels sequentially (~500ms each). This is
+  expected behavior. Ensure no other operations interrupt the diagnostic
+  sequence. Check kernel logs (dmesg) for timeout messages.
+
+**DC LDG Auto Diagnostics keeps retrying**
+  When automatic diagnostics are enabled (default) and a fault condition exists,
+  the device retries diagnostics every ~750ms indefinitely. This is the TRM-
+  specified auto-retry behavior. Solutions:
+
+  - Fix the fault condition (reconnect speaker, fix short, etc.)
+  - Disable auto-diagnostics: ``amixer cset name='DC LDG Auto Diagnostics Switch' 0``
+  - Use fast boot mode to skip initial diagnostics
+
+**Fast boot mode doesn't work**
+  Verify device tree configuration includes ``ti,fast-boot`` property. Check
+  kernel boot logs (``dmesg | grep tas6754``) for fast boot indication. The
+  property must be in the codec device node, not the sound card node.
+
+Real-Time Load Diagnostics Issues
+----------------------------------
+
+**RTLDG Impedance shows zero or stale values**
+  RTLDG only updates during PLAY state at 48kHz or 96kHz sample rates. Common
+  causes:
+
+  - Channels in SLEEP, MUTE, or Hi-Z state (not playing audio)
+  - Sample rate is 192kHz (RTLDG not supported at 192kHz)
+  - DSP mode is FFLP or LLP (RTLDG only available in Normal mode)
+  - RTLDG switch is disabled for the channel
+
+  Verify configuration::
+
+    # Check DSP mode
+    amixer -c TAS6754 cget name='DSP Signal Path Mode'
+    # Should return: Normal
+
+    # Check RTLDG switch
+    amixer -c TAS6754 cget name='CH1 RTLDG Switch'
+    # Should return: 1 (enabled)
+
+**RTLDG reports false faults during loud audio**
+  Enable RTLDG Clip Mask to suppress impedance updates during clipping events::
+
+    amixer -c TAS6754 cset name='RTLDG Clip Mask Switch' 1
+
+**RTLDG Fault Latched register never clears**
+  This is a read-to-clear register. Reading the register clears all latched
+  fault bits. Example::
+
+    # Reading the register automatically clears it
+    amixer -c TAS6754 cget name='RTLDG Fault Latched'
+
+Volume and Audio Quality Issues
+--------------------------------
+
+**Volume changes cause audible pops**
+  Adjust the analog gain ramp step duration for smoother transitions::
+
+    # Slower ramp (less pop, but slower response)
+    amixer -c TAS6754 cset name='Analog Gain Ramp Step' 400us
+
+**Mute/unmute transitions are too fast or too slow**
+  Configure volume ramp rates and steps. For example, fast mute with slow unmute::
+
+    # Fast mute
+    amixer -c TAS6754 cset name='Volume Ramp Down Rate' '32 FS'
+    amixer -c TAS6754 cset name='Volume Ramp Down Step' 4dB
+
+    # Slow unmute
+    amixer -c TAS6754 cset name='Volume Ramp Up Rate' '4 FS'
+    amixer -c TAS6754 cset name='Volume Ramp Up Step' 0.5dB
+
+**DC offset in audio output**
+  Ensure DC Blocker is enabled (not bypassed)::
+
+    amixer -c TAS6754 cset name='DC Blocker Bypass Switch' 0
+
+Power and Protection Issues
+----------------------------
+
+**Device enters OTSD (over-temperature shutdown)**
+  Check thermal management:
+
+  - Verify adequate heat sinking on device
+  - Check PVDD voltage is within specification
+  - Reduce output power or enable Thermal Foldback::
+
+      amixer -c TAS6754 cset name='Thermal Foldback Switch' 1
+
+  - Enable OTSD Auto Recovery to allow automatic recovery after cooldown::
+
+      amixer -c TAS6754 cset name='OTSD Auto Recovery Switch' 1
+
+**Frequent overcurrent protection trips**
+  Adjust overcurrent limit sensitivity or verify speaker impedance is within
+  specification. Try less sensitive setting::
+
+    # Current default (most sensitive)
+    amixer -c TAS6754 cget name='Overcurrent Limit Level'
+
+    # Set to less sensitive
+    amixer -c TAS6754 cset name='Overcurrent Limit Level' 'Level 4'
+
+**Clipping at lower volumes than expected**
+  Enable PVDD Foldback to maintain headroom as supply voltage varies::
+
+    amixer -c TAS6754 cset name='PVDD Foldback Switch' 1
+
+DSP Mode and Latency Issues
+----------------------------
+
+**Need lowest possible latency**
+  Switch to LLP (Low Latency Path) mode for ~70% latency reduction::
+
+    amixer -c TAS6754 cset name='DSP Signal Path Mode' LLP
+
+  Note: LLP disables DSP protection features (thermal/PVDD foldback, RTLDG,
+  clip detect, etc.) and some SDOUT functions.
+
+**Need low latency but require some protection**
+  Use FFLP (Full Feature Low Latency Path) mode::
+
+    amixer -c TAS6754 cset name='DSP Signal Path Mode' FFLP
+
+  Note: FFLP provides reduced latency but disables RTLDG.
+
+**RTLDG required, mode switch failed**
+  RTLDG is only available in Normal mode. Cannot use RTLDG with FFLP or LLP::
+
+    # Must use Normal mode for RTLDG
+    amixer -c TAS6754 cset name='DSP Signal Path Mode' Normal
+
+EMI and Noise Issues
+---------------------
+
+**EMI peaks at switching frequency**
+  Enable spread spectrum modulation to reduce peak EMI::
+
+    # Triangle mode for periodic modulation
+    amixer -c TAS6754 cset name='Spread Spectrum Mode' Triangle
+    amixer -c TAS6754 cset name='SS Triangle Range' '10%'
+
+    # Or Random mode for random modulation
+    amixer -c TAS6754 cset name='Spread Spectrum Mode' Random
+    amixer -c TAS6754 cset name='SS Random Range' '5.83%'
+
+    # Or both combined
+    amixer -c TAS6754 cset name='Spread Spectrum Mode' 'Triangle and Random'
+
+**Noise floor too high in quiet passages**
+  Enable auto mute with appropriate timing::
+
+    # Enable auto mute on all channels
+    amixer -c TAS6754 cset name='CH1 Auto Mute Switch' 1
+    amixer -c TAS6754 cset name='CH2 Auto Mute Switch' 1
+    amixer -c TAS6754 cset name='CH3 Auto Mute Switch' 1
+    amixer -c TAS6754 cset name='CH4 Auto Mute Switch' 1
+
+    # Set mute timing (example: 106.5ms at 96kHz)
+    amixer -c TAS6754 cset name='CH1 Auto Mute Time' 106.5ms
+
+Getting Help
+------------
+
+If you encounter issues not covered in this troubleshooting guide:
+
+1. Check kernel logs: ``dmesg | grep tas6754``
+2. Verify device tree configuration matches bindings documentation
+3. Consult the TAS6754-Q1 Technical Reference Manual (SLOU589A)
+4. Check register values using i2c-tools (if available): ``i2cdump -y <bus> <addr>``
+
+References
+==========
+
+- TAS6754-Q1 Technical Reference Manual (TRM): slou589a
+- Device Tree Bindings: Documentation/devicetree/bindings/sound/ti,tas6754.yaml
+- ALSA Control Name Conventions: Documentation/sound/designs/control-names.rst
