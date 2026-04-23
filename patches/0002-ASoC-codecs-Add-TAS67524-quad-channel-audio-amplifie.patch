@@ -1,46 +1,20 @@
-From 91306876a0a596864b65e8f46faba69e397874db Mon Sep 17 00:00:00 2001
+From d6ea1191ae8f783063cd49a334268422bb4bbefa Mon Sep 17 00:00:00 2001
 From: Sen Wang <sen@ti.com>
-Date: Wed, 11 Mar 2026 23:16:38 -0500
-Subject: [PATCH 2/5] ASoC: codecs: Add TAS675x quad-channel audio amplifier
+Date: Wed, 15 Apr 2026 16:50:20 -0500
+Subject: [PATCH] ASoC: codecs: Add TAS67524 quad-channel audio amplifier
  driver
 
-Add codec driver for the Texas Instruments TAS6754-Q1, a four-channel
-digital-input Class-D audio amplifier with integrated DSP and load
-diagnostics.
-
-The device provides three DAIs: standard audio playback (DAI 0),
-low-latency playback path (DAI 1) which bypasses DSP processing, and
-diagnostic feedback capture (DAI 2) for real-time voltage and current
-sense monitoring. All standard audio formats are supported (I2S, TDM,
-Left/Right Justified, DSP modes).
-
-Per-channel digital volume and analog gain controls are exposed via
-ALSA mixer controls. Individual channel power management is implemented
-using DAPM widgets, allowing independent control of each amplifier
-channel. DSP signal path mode switching and threshold configuration for
-load diagnostics are also exposed through DAPM controls.
-
-Hardware fault monitoring is supported via interrupt-driven reporting
-when a FAULT GPIO is provided, otherwise the driver uses polled
-monitoring. The driver implements regmap caching with register context
-save/restore across suspend/resume cycles for Book 0 registers.
-
-GPIO pins can be configured for various hardware functions including
-fault signaling, auto-mute indication, or external control of device
-power states.
-
-The ti,fast-boot device tree property allows skipping the automatic DC
-load diagnostic sweep at initialization for reduced boot time, while
-maintaining hardware overcurrent protection and automatic diagnostics
-after fault recovery.
+The TAS675x (TAS6754, TAS67524) are quad-channel, digital-input
+Class-D amplifiers with an integrated DSP, controlled over I2C.
+They support I2S and TDM serial audio interfaces.
 
 Signed-off-by: Sen Wang <sen@ti.com>
 ---
  sound/soc/codecs/Kconfig   |   12 +
  sound/soc/codecs/Makefile  |    2 +
- sound/soc/codecs/tas675x.c | 2158 ++++++++++++++++++++++++++++++++++++
+ sound/soc/codecs/tas675x.c | 2194 ++++++++++++++++++++++++++++++++++++
  sound/soc/codecs/tas675x.h |  367 ++++++
- 4 files changed, 2539 insertions(+)
+ 4 files changed, 2575 insertions(+)
  create mode 100644 sound/soc/codecs/tas675x.c
  create mode 100644 sound/soc/codecs/tas675x.h
 
@@ -96,13 +70,13 @@ index 172861d17cfd..106fdc140d42 100644
  obj-$(CONFIG_SND_SOC_TFA9879)	+= snd-soc-tfa9879.o
 diff --git a/sound/soc/codecs/tas675x.c b/sound/soc/codecs/tas675x.c
 new file mode 100644
-index 000000000000..fc30128840b7
+index 000000000000..6f89a422f3c6
 --- /dev/null
 +++ b/sound/soc/codecs/tas675x.c
-@@ -0,0 +1,2158 @@
+@@ -0,0 +1,2194 @@
 +// SPDX-License-Identifier: GPL-2.0
 +/*
-+ * ALSA SoC Texas Instruments TAS675x Quad-Channel Audio Amplifier
++ * ALSA SoC Texas Instruments TAS67524 Quad-Channel Audio Amplifier
 + *
 + * Copyright (C) 2026 Texas Instruments Incorporated - https://www.ti.com/
 + *	Author: Sen Wang <sen@ti.com>
@@ -130,7 +104,7 @@ index 000000000000..fc30128840b7
 +#define TAS675X_FAULT_CHECK_INTERVAL_MS  200
 +
 +enum tas675x_type {
-+	TAS6754,
++	TAS67524,
 +};
 +
 +struct tas675x_reg_param {
@@ -143,6 +117,7 @@ index 000000000000..fc30128840b7
 +	struct device *dev;
 +	struct regmap *regmap;
 +	enum tas675x_type dev_type;
++	/* Custom regmap lock; protects writes across books */
 +	struct mutex io_lock;
 +
 +	struct gpio_desc *pd_gpio;
@@ -171,7 +146,7 @@ index 000000000000..fc30128840b7
 +
 +	/* Fault monitor, disabled when Fault IRQ is used */
 +	struct delayed_work fault_check_work;
-+#define TAS675X_FAULT_REGS_NUM	8
++#define TAS675X_FAULT_REGS_NUM	9
 +	unsigned int last_status[TAS675X_FAULT_REGS_NUM];
 +};
 +
@@ -253,8 +228,8 @@ index 000000000000..fc30128840b7
 +	u8 buf[4];
 +	int ret;
 +
-+	/* DSP registers are 24-bit values, zero-padded MSB to 32-bit */
-+	buf[0] = 0x00;
++	/* DSP registers are 32 bit big-endian */
++	buf[0] = (val >> 24) & 0xFF;
 +	buf[1] = (val >> 16) & 0xFF;
 +	buf[2] = (val >> 8) & 0xFF;
 +	buf[3] = val & 0xFF;
@@ -304,7 +279,7 @@ index 000000000000..fc30128840b7
 +
 +	ret = i2c_smbus_read_i2c_block_data(client, reg, sizeof(buf), buf);
 +	if (ret == sizeof(buf)) {
-+		*val = (buf[1] << 16) | (buf[2] << 8) | buf[3];
++		*val = (buf[0] << 24) | (buf[1] << 16) | (buf[2] << 8) | buf[3];
 +		ret = 0;
 +	} else if (ret >= 0) {
 +		ret = -EIO;
@@ -413,8 +388,8 @@ index 000000000000..fc30128840b7
 +	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
 +	uinfo->count = 1;
 +	uinfo->value.integer.min = 0;
-+	/* Accepts 32-bit values, even though 8bit MSB is ignored */
-+	uinfo->value.integer.max = 0xFFFFFFFF;
++	/* threshold reg ranges up to 24bit */
++	uinfo->value.integer.max = 0x00FFFFFF;
 +	return 0;
 +}
 +
@@ -471,8 +446,10 @@ index 000000000000..fc30128840b7
 +		TAS675X_DSP_PAGE_RTLDG, TAS675X_DSP_RTLDG_SL_THRESH_REG },
 +};
 +
++static_assert(ARRAY_SIZE(tas675x_dsp_defaults) == TAS675X_DSP_PARAM_NUM);
++
 +static int tas675x_set_dcldg_trigger(struct snd_kcontrol *kcontrol,
-+				      struct snd_ctl_elem_value *ucontrol)
++				     struct snd_ctl_elem_value *ucontrol)
 +{
 +	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
 +	struct tas675x_priv *tas = snd_soc_component_get_drvdata(comp);
@@ -499,16 +476,23 @@ index 000000000000..fc30128840b7
 +	regmap_write(tas->regmap, TAS675X_RESET_REG, TAS675X_FAULT_CLEAR);
 +
 +	/* Wait for LOAD_DIAG to exit */
-+	regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
-+				 state, (state & 0x0F) != TAS675X_STATE_LOAD_DIAG &&
-+					(state >> 4) != TAS675X_STATE_LOAD_DIAG,
-+				 TAS675X_POLL_INTERVAL_US,
-+				 TAS675X_STATE_TRANSITION_TIMEOUT_US);
-+	regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
-+				 state34, (state34 & 0x0F) != TAS675X_STATE_LOAD_DIAG &&
-+					  (state34 >> 4) != TAS675X_STATE_LOAD_DIAG,
-+				 TAS675X_POLL_INTERVAL_US,
-+				 TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	ret = regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
++				       state, (state & 0x0F) != TAS675X_STATE_LOAD_DIAG &&
++					      (state >> 4) != TAS675X_STATE_LOAD_DIAG,
++				       TAS675X_POLL_INTERVAL_US,
++				       TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	ret |= regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
++					state34, (state34 & 0x0F) != TAS675X_STATE_LOAD_DIAG &&
++						 (state34 >> 4) != TAS675X_STATE_LOAD_DIAG,
++					TAS675X_POLL_INTERVAL_US,
++					TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	if (ret) {
++		dev_err(tas->dev,
++			"DC LDG: abort timeout (CH1/2=0x%02x [%s/%s], CH3/4=0x%02x [%s/%s])\n",
++			state, tas675x_state_name(state), tas675x_state_name(state >> 4),
++			state34, tas675x_state_name(state34), tas675x_state_name(state34 >> 4));
++		goto out_restore_ldg_ctrl;
++	}
 +
 +	/* Transition to HIZ state */
 +	ret = tas675x_set_state_all(tas, TAS675X_STATE_HIZ_BOTH);
@@ -521,14 +505,21 @@ index 000000000000..fc30128840b7
 +		goto out_restore_ldg_ctrl;
 +
 +	/* Wait for device to transition to LOAD_DIAG state */
-+	regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
-+				 state, state == TAS675X_STATE_LOAD_DIAG_BOTH,
-+				 TAS675X_POLL_INTERVAL_US,
-+				 TAS675X_STATE_TRANSITION_TIMEOUT_US);
-+	regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
-+				 state34, state34 == TAS675X_STATE_LOAD_DIAG_BOTH,
-+				 TAS675X_POLL_INTERVAL_US,
-+				 TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	ret = regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
++				       state, state == TAS675X_STATE_LOAD_DIAG_BOTH,
++				       TAS675X_POLL_INTERVAL_US,
++				       TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	ret |= regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
++					state34, state34 == TAS675X_STATE_LOAD_DIAG_BOTH,
++					TAS675X_POLL_INTERVAL_US,
++					TAS675X_STATE_TRANSITION_TIMEOUT_US);
++	if (ret) {
++		dev_err(tas->dev,
++			"DC LDG: LOAD_DIAG timeout (CH1/2=0x%02x [%s/%s], CH3/4=0x%02x [%s/%s])\n",
++			state, tas675x_state_name(state), tas675x_state_name(state >> 4),
++			state34, tas675x_state_name(state34), tas675x_state_name(state34 >> 4));
++		goto out_restore_hiz;
++	}
 +
 +	/* Clear ABORT and BYPASS bits to enable manual DC LDG */
 +	ret = regmap_update_bits(tas->regmap, TAS675X_DC_LDG_CTRL_REG,
@@ -541,16 +532,16 @@ index 000000000000..fc30128840b7
 +
 +	/* Poll all channels for SLEEP state */
 +	ret = regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
-+				      state, state == TAS675X_STATE_SLEEP_BOTH,
-+				      TAS675X_POLL_INTERVAL_US,
-+				      TAS675X_DC_LDG_TIMEOUT_US);
++				       state, state == TAS675X_STATE_SLEEP_BOTH,
++				       TAS675X_POLL_INTERVAL_US,
++				       TAS675X_DC_LDG_TIMEOUT_US);
 +	ret |= regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
 +				       state34, state34 == TAS675X_STATE_SLEEP_BOTH,
 +				       TAS675X_POLL_INTERVAL_US,
 +				       TAS675X_DC_LDG_TIMEOUT_US);
 +	if (ret) {
 +		dev_err(tas->dev,
-+			"DC LDG: timeout (CH1/2=0x%02x [%s/%s], CH3/4=0x%02x [%s/%s])\n",
++			"DC LDG: SLEEP timeout (CH1/2=0x%02x [%s/%s], CH3/4=0x%02x [%s/%s])\n",
 +			state, tas675x_state_name(state), tas675x_state_name(state >> 4),
 +			state34, tas675x_state_name(state34), tas675x_state_name(state34 >> 4));
 +		goto out_restore_hiz;
@@ -574,7 +565,7 @@ index 000000000000..fc30128840b7
 +}
 +
 +static int tas675x_set_acldg_trigger(struct snd_kcontrol *kcontrol,
-+				      struct snd_ctl_elem_value *ucontrol)
++				     struct snd_ctl_elem_value *ucontrol)
 +{
 +	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
 +	struct tas675x_priv *tas = snd_soc_component_get_drvdata(comp);
@@ -609,9 +600,9 @@ index 000000000000..fc30128840b7
 +
 +	/* Poll all channels for SLEEP state */
 +	ret = regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH1_CH2_REG,
-+					state, (state == TAS675X_STATE_SLEEP_BOTH),
-+					TAS675X_POLL_INTERVAL_US,
-+					TAS675X_AC_LDG_TIMEOUT_US);
++				       state, (state == TAS675X_STATE_SLEEP_BOTH),
++				       TAS675X_POLL_INTERVAL_US,
++				       TAS675X_AC_LDG_TIMEOUT_US);
 +	if (ret) {
 +		dev_err(tas->dev,
 +			"AC LDG: CH1/CH2 timeout: %d (state=0x%02x [%s/%s])\n",
@@ -622,9 +613,9 @@ index 000000000000..fc30128840b7
 +	}
 +
 +	ret = regmap_read_poll_timeout(tas->regmap, TAS675X_STATE_REPORT_CH3_CH4_REG,
-+					state34, (state34 == TAS675X_STATE_SLEEP_BOTH),
-+					TAS675X_POLL_INTERVAL_US,
-+					TAS675X_AC_LDG_TIMEOUT_US);
++				       state34, (state34 == TAS675X_STATE_SLEEP_BOTH),
++				       TAS675X_POLL_INTERVAL_US,
++				       TAS675X_AC_LDG_TIMEOUT_US);
 +	if (ret) {
 +		dev_err(tas->dev,
 +			"AC LDG: CH3/CH4 timeout: %d (state=0x%02x [%s/%s])\n",
@@ -637,7 +628,6 @@ index 000000000000..fc30128840b7
 +	dev_dbg(tas->dev, "AC LDG: Completed successfully (CH1/2=0x%02x, CH3/4=0x%02x)\n",
 +		state, state34);
 +	regmap_write(tas->regmap, TAS675X_AC_LDG_CTRL_REG, 0x00);
-+	ret = 0;
 +
 +out:
 +	pm_runtime_mark_last_busy(tas->dev);
@@ -657,28 +647,24 @@ index 000000000000..fc30128840b7
 +}
 +
 +static int tas675x_get_rtldg_impedance(struct snd_kcontrol *kcontrol,
-+					struct snd_ctl_elem_value *ucontrol)
++				       struct snd_ctl_elem_value *ucontrol)
 +{
 +	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
 +	struct tas675x_priv *tas = snd_soc_component_get_drvdata(comp);
 +	unsigned int msb_reg = (unsigned int)kcontrol->private_value;
-+	unsigned int msb, lsb;
++	u8 buf[2];
 +	int ret;
 +
-+	ret = regmap_read(tas->regmap, msb_reg, &msb);
++	ret = regmap_bulk_read(tas->regmap, msb_reg, buf, 2);
 +	if (ret)
 +		return ret;
 +
-+	ret = regmap_read(tas->regmap, msb_reg + 1, &lsb);
-+	if (ret)
-+		return ret;
-+
-+	ucontrol->value.integer.value[0] = (msb << 8) | lsb;
++	ucontrol->value.integer.value[0] = (buf[0] << 8) | buf[1];
 +	return 0;
 +}
 +
 +static int tas675x_dc_resistance_info(struct snd_kcontrol *kcontrol,
-+				       struct snd_ctl_elem_info *uinfo)
++				      struct snd_ctl_elem_info *uinfo)
 +{
 +	/* 10-bit: 2-bit MSB + 8-bit LSB, 0.1 ohm/code, 0-102.3 ohm */
 +	uinfo->type = SNDRV_CTL_ELEM_TYPE_INTEGER;
@@ -689,7 +675,7 @@ index 000000000000..fc30128840b7
 +}
 +
 +static int tas675x_get_dc_resistance(struct snd_kcontrol *kcontrol,
-+				      struct snd_ctl_elem_value *ucontrol)
++				     struct snd_ctl_elem_value *ucontrol)
 +{
 +	struct snd_soc_component *comp = snd_kcontrol_chip(kcontrol);
 +	struct tas675x_priv *tas = snd_soc_component_get_drvdata(comp);
@@ -1030,7 +1016,7 @@ index 000000000000..fc30128840b7
 +		.info = snd_ctl_boolean_mono_info,
 +		.put = tas675x_set_acldg_trigger,
 +	},
-+	SOC_SINGLE("AC DIAG GAIN", TAS675X_AC_LDG_CTRL_REG, 4, 1, 0),
++	SOC_SINGLE("AC LDG Gain", TAS675X_AC_LDG_CTRL_REG, 4, 1, 0),
 +	SOC_SINGLE("AC LDG Test Frequency", TAS675X_AC_LDG_FREQ_CTRL_REG, 0, 0xFF, 0),
 +	SOC_SINGLE_RO("CH1 AC LDG Real", TAS675X_AC_LDG_REPORT_CH1_R_REG, 0, 0xFF),
 +	SOC_SINGLE_RO("CH1 AC LDG Imag", TAS675X_AC_LDG_REPORT_CH1_I_REG, 0, 0xFF),
@@ -1069,7 +1055,6 @@ index 000000000000..fc30128840b7
 +	/*
 +	 * Unavailable in both FFLP and LLP, Normal mode only
 +	 */
-+
 +	/* Real-Time Load Diagnostics */
 +	SOC_SINGLE("CH1 RTLDG Switch", TAS675X_RTLDG_EN_REG, 3, 1, 0),
 +	SOC_SINGLE("CH2 RTLDG Switch", TAS675X_RTLDG_EN_REG, 2, 1, 0),
@@ -1085,7 +1070,6 @@ index 000000000000..fc30128840b7
 +	SOC_RTLDG_IMP_RO("CH2 RTLDG Impedance", TAS675X_CH2_RTLDG_IMP_MSB_REG),
 +	SOC_RTLDG_IMP_RO("CH3 RTLDG Impedance", TAS675X_CH3_RTLDG_IMP_MSB_REG),
 +	SOC_RTLDG_IMP_RO("CH4 RTLDG Impedance", TAS675X_CH4_RTLDG_IMP_MSB_REG),
-+	SOC_SINGLE_RO("RTLDG Fault Latched", TAS675X_RTLDG_OL_SL_FAULT_LATCHED_REG, 0, 0xFF),
 +};
 +
 +static const struct snd_kcontrol_new tas675x_audio_path_switch =
@@ -1104,9 +1088,9 @@ index 000000000000..fc30128840b7
 +	SND_SOC_DAPM_ADC("Feedback ADC", "Feedback Capture", SND_SOC_NOPM, 0, 0),
 +
 +	SND_SOC_DAPM_SWITCH("Audio Path", SND_SOC_NOPM, 0, 0,
-+			     &tas675x_audio_path_switch),
++			    &tas675x_audio_path_switch),
 +	SND_SOC_DAPM_SWITCH("ANC Path", SND_SOC_NOPM, 0, 0,
-+			     &tas675x_anc_path_switch),
++			    &tas675x_anc_path_switch),
 +
 +	/*
 +	 * Even though all channels are coupled in terms of power control,
@@ -1255,7 +1239,7 @@ index 000000000000..fc30128840b7
 +		 * RTLDG is not supported above 96kHz. Auto-disable to
 +		 * prevent DSP overload and restore when rate drops back.
 +		 */
-+		if (params_rate(params) > 96000) {
++		if (rate > 96000) {
 +			unsigned int val;
 +
 +			regmap_read(component->regmap, TAS675X_RTLDG_EN_REG,
@@ -1263,8 +1247,8 @@ index 000000000000..fc30128840b7
 +			if (val & TAS675X_RTLDG_CH_EN_MASK) {
 +				tas->saved_rtldg_en = val;
 +				dev_dbg(component->dev,
-+					 "Sample rate %dHz > 96kHz: Auto-disabling RTLDG\n",
-+					 params_rate(params));
++					"Sample rate %dHz > 96kHz: Auto-disabling RTLDG\n",
++					rate);
 +				regmap_update_bits(component->regmap,
 +						   TAS675X_RTLDG_EN_REG,
 +						   TAS675X_RTLDG_CH_EN_MASK,
@@ -1280,7 +1264,7 @@ index 000000000000..fc30128840b7
 +				    &cur);
 +			if (!(cur & TAS675X_RTLDG_CH_EN_MASK)) {
 +				dev_dbg(component->dev,
-+					 "Restoring RTLDG config after high-rate stream\n");
++					"Restoring RTLDG config after high-rate stream\n");
 +				regmap_update_bits(component->regmap,
 +						   TAS675X_RTLDG_EN_REG,
 +						   TAS675X_RTLDG_CH_EN_MASK,
@@ -1304,7 +1288,7 @@ index 000000000000..fc30128840b7
 +	}
 +
 +	tas675x_program_slot_offsets(tas, dai->id,
-+				    tas->slot_width ?: params_width(params));
++				     tas->slot_width ?: params_width(params));
 +
 +	tas->rate = rate;
 +
@@ -1552,10 +1536,9 @@ index 000000000000..fc30128840b7
 +	}
 +};
 +
-+/**
-+ * Hardware power sequencing
-+ * Handles regulator enable and GPIO deassertion.
-+ * The device is not be I2C-accessible until boot wait completes.
++/*
++ * Enable regulators and release hardware reset GPIOs.
++ * The device is not I2C-accessible until this returns.
 + */
 +static int tas675x_hw_enable(struct tas675x_priv *tas)
 +{
@@ -1630,8 +1613,8 @@ index 000000000000..fc30128840b7
 +	regulator_bulk_disable(ARRAY_SIZE(tas->supplies), tas->supplies);
 +}
 +
-+/**
-+ * Device start-up defaults
++/*
++ * Write device start-up defaults.
 + * Must be called after tas675x_hw_enable() and after regcache is enabled.
 + */
 +static int tas675x_init_device(struct tas675x_priv *tas)
@@ -1671,7 +1654,7 @@ index 000000000000..fc30128840b7
 +	 */
 +	regcache_cache_bypass(regmap, true);
 +	ret = regmap_multi_reg_write(regmap, tas675x_page1_init,
-+				    ARRAY_SIZE(tas675x_page1_init));
++				     ARRAY_SIZE(tas675x_page1_init));
 +	regcache_cache_bypass(regmap, false);
 +	if (ret)
 +		goto err_setup;
@@ -1693,15 +1676,20 @@ index 000000000000..fc30128840b7
 +	}
 +
 +	/*
-+	 * Route fault events to FAULT pin for IRQ handler
++	 * Configure fault and warning event routing:
 +	 *
-+	 * ROUTING_1: latched CP fault, CP UVLO, OUTM soft short
-+	 * ROUTING_2: non-latching power fault events (+ default OTSD, CBC)
-+	 * ROUTING_4: OTW, clip warning, protection shutdown, OC, DC
-+	 * ROUTING_5: clock, CBC warning, RTLDG, clip detect
++	 * ROUTING_1: CP fault/UVLO latch, OUTM soft short latch
++	 * ROUTING_2: CBC latch, OTSD latch, OTSD, power fault
++	 * ROUTING_3: CBC latch, OTSD latch, power latch, DC LDG,
++	 *            OTSD, power warnings
++	 * ROUTING_4: OC latch, DC latch, protection shutdown
++	 *            OTW latch, OTW, clip latch
++	 * ROUTING_5: clock latch+non-latch, RTLDG latch
++	 *            CBC warning, clip warning
 +	 */
 +	regmap_write(regmap, TAS675X_REPORT_ROUTING_1_REG, 0x70);
 +	regmap_write(regmap, TAS675X_REPORT_ROUTING_2_REG, 0xA3);
++	regmap_write(regmap, TAS675X_REPORT_ROUTING_3_REG, 0xBB);
 +	regmap_write(regmap, TAS675X_REPORT_ROUTING_4_REG, 0x7E);
 +	regmap_write(regmap, TAS675X_REPORT_ROUTING_5_REG, 0xF3);
 +
@@ -1725,6 +1713,7 @@ index 000000000000..fc30128840b7
 +				   0);
 +
 +	/* Clear any stale faults from the boot sequence */
++	regmap_read(regmap, TAS675X_POWER_FAULT_STATUS_1_REG, &val);
 +	regmap_read(regmap, TAS675X_POWER_FAULT_LATCHED_REG, &val);
 +	regmap_read(regmap, TAS675X_CLK_FAULT_LATCHED_REG, &val);
 +	regmap_write(regmap, TAS675X_RESET_REG, TAS675X_FAULT_CLEAR);
@@ -1781,7 +1770,7 @@ index 000000000000..fc30128840b7
 +{
 +	struct tas675x_priv *tas = dev_get_drvdata(dev);
 +
-+	cancel_delayed_work_sync(&tas->fault_check_work);
++	disable_delayed_work_sync(&tas->fault_check_work);
 +	tas675x_set_state_all(tas, TAS675X_STATE_SLEEP_BOTH);
 +
 +	return 0;
@@ -1793,9 +1782,11 @@ index 000000000000..fc30128840b7
 +
 +	tas675x_set_state_all(tas, TAS675X_STATE_SLEEP_BOTH);
 +
-+	if (!to_i2c_client(dev)->irq)
++	if (!to_i2c_client(dev)->irq) {
++		enable_delayed_work(&tas->fault_check_work);
 +		schedule_delayed_work(&tas->fault_check_work,
 +				      msecs_to_jiffies(TAS675X_FAULT_CHECK_INTERVAL_MS));
++	}
 +
 +	return 0;
 +}
@@ -1809,6 +1800,9 @@ index 000000000000..fc30128840b7
 +	if (ret)
 +		return ret;
 +
++	if (to_i2c_client(dev)->irq)
++		disable_irq(to_i2c_client(dev)->irq);
++
 +	tas675x_power_off(tas);
 +	return 0;
 +}
@@ -1821,6 +1815,9 @@ index 000000000000..fc30128840b7
 +	ret = tas675x_power_on(tas);
 +	if (ret)
 +		return ret;
++
++	if (to_i2c_client(dev)->irq)
++		enable_irq(to_i2c_client(dev)->irq);
 +
 +	return tas675x_runtime_resume(dev);
 +}
@@ -1857,6 +1854,8 @@ index 000000000000..fc30128840b7
 +	{ TAS675X_CBC_FAULT_WARN_LATCHED_REG,    TAS675X_FAULT_CRITICAL | TAS675X_FAULT_TRACK,
 +	  "CBC Fault/Warning" },
 +	/* Warning */
++	{ TAS675X_POWER_FAULT_STATUS_1_REG,      TAS675X_FAULT_TRACK,
++	  "CP / OUTM Fault" },
 +	{ TAS675X_POWER_FAULT_LATCHED_REG,       TAS675X_FAULT_TRACK,
 +	  "Power Fault" },
 +	{ TAS675X_CLK_FAULT_LATCHED_REG,         TAS675X_FAULT_TRACK | TAS675X_FAULT_ACTIVE,
@@ -1869,17 +1868,19 @@ index 000000000000..fc30128840b7
 +
 +static_assert(ARRAY_SIZE(tas675x_fault_table) == TAS675X_FAULT_REGS_NUM);
 +
-+/**
-+ * Read and log all latched fault registers
++/*
++ * Read and log all latched fault registers.
 + * Shared by both the polled fault_check_work and IRQ handler paths
 + * (which are mutually exclusive, only one is active per device).
++ * Returns true if any fault register needs to be cleared.
 + *
-+ * Returns true if any critical fault was detected that needs FAULT_CLEAR.
++ * For deciphering fault messages, see "Fault Monitoring" in
++ * Documentation/sound/codecs/tas675x.rst
 + */
 +static bool tas675x_check_faults(struct tas675x_priv *tas)
 +{
 +	struct device *dev = tas->dev;
-+	bool is_latched = false;
++	bool needs_clear = false;
 +	unsigned int reg;
 +	int i, ret;
 +
@@ -1890,18 +1891,19 @@ index 000000000000..fc30128840b7
 +		if (ret) {
 +			if (f->flags & TAS675X_FAULT_CRITICAL) {
 +				dev_err(dev, "failed to read %s: %d\n", f->name, ret);
-+				return is_latched;
++				return needs_clear;
 +			}
 +			continue;
 +		}
 +
++		if (reg)
++			needs_clear = true;
++
++		/* Skip logging stream-dependent events when no stream is active */
 +		if ((f->flags & TAS675X_FAULT_ACTIVE) &&
 +		    !READ_ONCE(tas->active_playback_dais) &&
 +		    !READ_ONCE(tas->active_capture_dais))
 +			continue;
-+
-+		if ((f->flags & TAS675X_FAULT_CRITICAL) && reg)
-+			is_latched = true;
 +
 +		/* Log on change or on every non-zero read */
 +		if (reg && (!(f->flags & TAS675X_FAULT_TRACK) ||
@@ -1916,7 +1918,7 @@ index 000000000000..fc30128840b7
 +			tas->last_status[i] = reg;
 +	}
 +
-+	return is_latched;
++	return needs_clear;
 +}
 +
 +static void tas675x_fault_check_work(struct work_struct *work)
@@ -1934,13 +1936,19 @@ index 000000000000..fc30128840b7
 +static irqreturn_t tas675x_irq_handler(int irq, void *data)
 +{
 +	struct tas675x_priv *tas = data;
++	irqreturn_t ret = IRQ_NONE;
 +
-+	tas675x_check_faults(tas);
++	if (pm_runtime_resume_and_get(tas->dev) < 0)
++		return IRQ_NONE;
 +
-+	/* Clear the FAULT pin latch as something latched */
-+	regmap_write(tas->regmap, TAS675X_RESET_REG, TAS675X_FAULT_CLEAR);
++	if (tas675x_check_faults(tas)) {
++		regmap_write(tas->regmap, TAS675X_RESET_REG, TAS675X_FAULT_CLEAR);
++		ret = IRQ_HANDLED;
++	}
 +
-+	return IRQ_HANDLED;
++	pm_runtime_mark_last_busy(tas->dev);
++	pm_runtime_put_autosuspend(tas->dev);
++	return ret;
 +}
 +
 +static const struct reg_default tas675x_reg_defaults[] = {
@@ -2162,17 +2170,17 @@ index 000000000000..fc30128840b7
 +		return dev_err_probe(tas->dev, PTR_ERR(tas->vbat),
 +				     "Failed to get vbat supply\n");
 +
-+	tas->pd_gpio = devm_gpiod_get_optional(tas->dev, "pd", GPIOD_OUT_HIGH);
++	tas->pd_gpio = devm_gpiod_get_optional(tas->dev, "powerdown", GPIOD_OUT_HIGH);
 +	if (IS_ERR(tas->pd_gpio))
-+		return dev_err_probe(tas->dev, PTR_ERR(tas->pd_gpio), "Failed pd-gpios\n");
++		return dev_err_probe(tas->dev, PTR_ERR(tas->pd_gpio), "Failed powerdown-gpios\n");
 +
-+	tas->stby_gpio = devm_gpiod_get_optional(tas->dev, "stby", GPIOD_OUT_HIGH);
++	tas->stby_gpio = devm_gpiod_get_optional(tas->dev, "standby", GPIOD_OUT_HIGH);
 +	if (IS_ERR(tas->stby_gpio))
-+		return dev_err_probe(tas->dev, PTR_ERR(tas->stby_gpio), "Failed stby-gpios\n");
++		return dev_err_probe(tas->dev, PTR_ERR(tas->stby_gpio), "Failed standby-gpios\n");
 +
 +	if (!tas->pd_gpio && !tas->stby_gpio)
 +		return dev_err_probe(tas->dev, -EINVAL,
-+				     "At least one of pd-gpios or stby-gpios is required\n");
++				     "At least one of powerdown-gpios or standby-gpios is required\n");
 +
 +	ret = tas675x_power_on(tas);
 +	if (ret)
@@ -2201,7 +2209,7 @@ index 000000000000..fc30128840b7
 +	pm_runtime_enable(tas->dev);
 +
 +	ret = devm_snd_soc_register_component(tas->dev, &soc_codec_dev_tas675x,
-+					       tas675x_dais, ARRAY_SIZE(tas675x_dais));
++					      tas675x_dais, ARRAY_SIZE(tas675x_dais));
 +	if (ret)
 +		goto err_pm_disable;
 +
@@ -2218,6 +2226,10 @@ index 000000000000..fc30128840b7
 +{
 +	struct tas675x_priv *tas = dev_get_drvdata(&client->dev);
 +
++	disable_delayed_work_sync(&tas->fault_check_work);
++	if (client->irq)
++		disable_irq(client->irq);
++
 +	pm_runtime_force_suspend(&client->dev);
 +	pm_runtime_disable(&client->dev);
 +	tas675x_power_off(tas);
@@ -2229,15 +2241,13 @@ index 000000000000..fc30128840b7
 +};
 +
 +static const struct of_device_id tas675x_of_match[] = {
-+	{ .compatible = "ti,tas6754",  .data = (void *)TAS6754 },
-+	{ .compatible = "ti,tas67524", .data = (void *)TAS6754 },
++	{ .compatible = "ti,tas67524", .data = (void *)TAS67524 },
 +	{ }
 +};
 +MODULE_DEVICE_TABLE(of, tas675x_of_match);
 +
 +static const struct i2c_device_id tas675x_i2c_id[] = {
-+	{ "tas6754",  TAS6754 },
-+	{ "tas67524", TAS6754 },
++	{ "tas67524",  TAS67524 },
 +	{ }
 +};
 +MODULE_DEVICE_TABLE(i2c, tas675x_i2c_id);

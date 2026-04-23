@@ -1,8 +1,7 @@
-From bcc648656ef8521ac0e873f7e408a276aa8db982 Mon Sep 17 00:00:00 2001
+From 929a09c4cdc677e32b400eefe0af63918cfc44df Mon Sep 17 00:00:00 2001
 From: Sen Wang <sen@ti.com>
-Date: Wed, 11 Mar 2026 23:16:43 -0500
-Subject: [PATCH 3/5] ASoC: ti: davinci-mcasp: Add audio-graph-card2 DPCM
- support
+Date: Thu, 23 Apr 2026 06:22:07 -0500
+Subject: [PATCH] ASoC: ti: davinci-mcasp: Add audio-graph-card2 DPCM support
 
 Experimental support on top of the OF-graph and audio-graph-card2
 normal mode patches to add DPCM mode.

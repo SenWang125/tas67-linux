@@ -1,0 +1,49 @@
+From 6752e0f1d1af1779c9748ff3c736c8f0ff027009 Mon Sep 17 00:00:00 2001
+From: Sen Wang <sen@ti.com>
+Date: Wed, 15 Apr 2026 16:51:01 -0500
+Subject: [PATCH] MAINTAINERS: add entry for TAS67524 audio amplifier
+
+Add Sen Wang as maintainer for the TAS67524 codec driver, DT binding,
+and documentation.
+
+Signed-off-by: Sen Wang <sen@ti.com>
+---
+ MAINTAINERS | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index a626dee5c106..a78b6cb9b907 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -26191,17 +26191,20 @@ TEXAS INSTRUMENTS AUDIO (ASoC/HDA) DRIVERS
+ M:	Shenghao Ding <shenghao-ding@ti.com>
+ M:	Kevin Lu <kevin-lu@ti.com>
+ M:	Baojun Xu <baojun.xu@ti.com>
++M:	Sen Wang <sen@ti.com>
+ L:	linux-sound@vger.kernel.org
+ S:	Maintained
+ F:	Documentation/devicetree/bindings/sound/ti,tas2552.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tas2562.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tas2770.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tas27xx.yaml
++F:	Documentation/devicetree/bindings/sound/ti,tas67524.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tpa6130a2.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,pcm1681.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,pcm3168a.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tlv320*.yaml
+ F:	Documentation/devicetree/bindings/sound/ti,tlv320adcx140.yaml
++F:	Documentation/sound/codecs/tas675x*
+ F:	include/sound/tas2*.h
+ F:	include/sound/tlv320*.h
+ F:	sound/hda/codecs/side-codecs/tas2781_hda_i2c.c
+@@ -26215,6 +26218,7 @@ F:	sound/soc/codecs/pcm3168a*.*
+ F:	sound/soc/codecs/pcm5102a.c
+ F:	sound/soc/codecs/pcm512x*.*
+ F:	sound/soc/codecs/tas2*.*
++F:	sound/soc/codecs/tas675x*.*
+ F:	sound/soc/codecs/tlv320*.*
+ F:	sound/soc/codecs/tpa6130a2.*
+ 
+-- 
+2.43.0
+
