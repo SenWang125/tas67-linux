@@ -1,0 +1,150 @@
+// SPDX-License-Identifier: GPL-2.0-only OR MIT
+/**
+ * DT overlay for TAS67CD-AEC daughter card on AM62D-EVM's AEC1 connector.
+ *
+ * Uses simple-audio-card with main audio path only.
+ * LLP (ANC bypass) and I/V sense feedback capture are excluded.
+ * 8 TDM slots: slots 0-3 for TAS0, slots 4-7 for TAS1.
+ *
+ * Copyright (C) 2026 Texas Instruments Incorporated - https://www.ti.com/
+ */
+
+/dts-v1/;
+/plugin/;
+
+#include <dt-bindings/gpio/gpio.h>
+#include "k3-pinctrl.h"
+
+&{/} {
+	tas67cd_dvdd: regulator-tas67cd-dvdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tas67cd-dvdd";
+		regulator-min-microvolt = <1800000>;
+		regulator-max-microvolt = <1800000>;
+		regulator-always-on;
+		regulator-boot-on;
+	};
+
+	tas67cd_pvdd: regulator-tas67cd-pvdd {
+		compatible = "regulator-fixed";
+		regulator-name = "tas67cd-pvdd";
+		regulator-min-microvolt = <12000000>;
+		regulator-max-microvolt = <12000000>;
+		regulator-always-on;
+	};
+};
+
+&main_pmx0 {
+	mcasp1_tas67cd_pins: mcasp1-tas67cd-pins {
+		pinctrl-single,pins = <
+			AM62DX_IOPAD(0x0124, PIN_INPUT,  1) /* (F22) MMC2_SDCD.MCASP1_ACLKX */
+			AM62DX_IOPAD(0x0128, PIN_INPUT,  1) /* (E21) MMC2_SDWP.MCASP1_AFSX */
+			AM62DX_IOPAD(0x0114, PIN_OUTPUT, 1) /* (E20) MMC2_DAT0.MCASP1_AXR0 */
+		>;
+	};
+
+	tas67cd_stby_pins: tas67cd-stby-pins {
+		pinctrl-single,pins = <
+			AM62DX_IOPAD(0x0088, PIN_OUTPUT, 7) /* (L17) GPMC0_OEn_REn.GPIO0_33 */
+			AM62DX_IOPAD(0x008c, PIN_OUTPUT, 7) /* (K19) GPMC0_WEn.GPIO0_34 */
+		>;
+	};
+};
+
+&mcasp1 {
+	status = "okay";
+	#sound-dai-cells = <0>;
+
+	pinctrl-names = "default";
+	pinctrl-0 = <&mcasp1_tas67cd_pins>;
+
+	assigned-clocks = <&k3_clks 191 0>;
+	assigned-clock-parents = <&k3_clks 191 2>;
+	assigned-clock-rates = <320000000>;
+	auxclk-fs-ratio = <6656>;
+	op-mode = <0>;
+	tdm-slots = <8>;
+	serial-dir = <	/* 0: INACTIVE, 1: TX, 2: RX */
+		1 0 0 0	/* AXR0=TX (TAS0/1 main audio) */
+		0 0 0 0
+		0 0 0 0
+		0 0 0 0
+	>;
+};
+
+&main_i2c2 {
+	#address-cells = <1>;
+	#size-cells = <0>;
+	pinctrl-0 = <&main_i2c2_pins_default &tas67cd_stby_pins>;
+
+	tas6754_0: tas6754@70 {
+		compatible = "ti,tas6754";
+		reg = <0x70>;
+		#sound-dai-cells = <1>;
+		sound-name-prefix = "TAS0";
+
+		dvdd-supply = <&buck3>;
+		pvdd-supply = <&tas67cd_pvdd>;
+
+		stby-gpios = <&main_gpio0 33 GPIO_ACTIVE_LOW>;
+
+		ti,audio-slot-no = <0>;
+		ti,gpio1-function = "mute";
+	};
+
+	tas6754_1: tas6754@71 {
+		compatible = "ti,tas6754";
+		reg = <0x71>;
+		#sound-dai-cells = <1>;
+		sound-name-prefix = "TAS1";
+
+		dvdd-supply = <&buck3>;
+		pvdd-supply = <&tas67cd_pvdd>;
+
+		stby-gpios = <&main_gpio0 34 GPIO_ACTIVE_LOW>;
+
+		ti,audio-slot-no = <4>;
+		ti,gpio1-function = "mute";
+	};
+};
+
+&{/} {
+	sound_tas67cd: sound-tas67cd {
+		compatible = "simple-audio-card";
+		simple-audio-card,name = "TAS67CD-AEC";
+
+		simple-audio-card,widgets =
+			"Speaker", "TAS0 Speaker",
+			"Speaker", "TAS1 Speaker";
+
+		simple-audio-card,routing =
+			"TAS0 Speaker",      "TAS0 OUT_CH1",
+			"TAS0 Speaker",      "TAS0 OUT_CH2",
+			"TAS0 Speaker",      "TAS0 OUT_CH3",
+			"TAS0 Speaker",      "TAS0 OUT_CH4",
+			"TAS1 Speaker",      "TAS1 OUT_CH1",
+			"TAS1 Speaker",      "TAS1 OUT_CH2",
+			"TAS1 Speaker",      "TAS1 OUT_CH3",
+			"TAS1 Speaker",      "TAS1 OUT_CH4",
+			"TAS0 SPEAKER_LOAD", "TAS0 Speaker",
+			"TAS1 SPEAKER_LOAD", "TAS1 Speaker";
+
+		simple-audio-card,dai-link {
+			format = "dsp_b";
+			bitclock-master = <&link_cpu>;
+			frame-master = <&link_cpu>;
+
+			link_cpu: cpu {
+				sound-dai = <&mcasp1>;
+			};
+
+			codec@0 {
+				sound-dai = <&tas6754_0 0>;
+			};
+
+			codec@1 {
+				sound-dai = <&tas6754_1 0>;
+			};
+		};
+	};
+};

@@ -11,7 +11,9 @@ This repo contains the Linux driver for the **TI TAS67524-Q1** (TAS675x family) 
 - **DT binding** (`ti,tas67524.yaml`) - device tree schema for TAS67524
 - **ASoC codec driver** - full driver with 3 DAI endpoints, DAPM, volume controls, load diagnostics, fault monitoring, and suspend/resume support
 - **McASP update** - audio-graph-card2 DPCM topology support in `davinci-mcasp` (experimental, for demonstration)
-- **DTS overlay** - overlay for the AM62D2-EVM with TAS67CD-AEC daughter card
+- **DTS overlays** - two overlays for the AM62D2-EVM with TAS67CD-AEC daughter card:
+  - `k3-am62d-evm-tas67cd-aec.dtso` — audio-graph-card2 DPCM topology (main + LLP + I/V feedback capture)
+  - `k3-am62d-evm-tas67cd-aec-simple.dtso` — simple-audio-card, main audio only (no LLP, no feedback)
 - **Documentation** - mixer controls, fault monitoring reference with usage examples
 - **MAINTAINERS** - entry for TAS67524 driver and bindings
 
@@ -56,8 +58,14 @@ make Image dtbs modules -j$(nproc)
 
 Copy the kernel image, modules, and DTB overlay to the board. Then configure U-Boot to load the overlay by editing `uEnv.txt` on the boot partition:
 
+For the full DPCM topology (audio-graph-card2 with LLP and I/V feedback):
 ```
 name_overlays=ti/k3-am62d-evm-tas67cd-aec.dtbo
+```
+
+For the simple-audio-card (main audio path only, easier bring-up):
+```
+name_overlays=ti/k3-am62d-evm-tas67cd-aec-simple.dtbo
 ```
 
 Example on target:
@@ -68,7 +76,7 @@ mount /dev/mmcblk1p1 /run/media/boot-mmcblk1p1
 
 # Edit uEnv.txt
 vi /run/media/boot-mmcblk1p1/uEnv.txt
-# Add: name_overlays=ti/k3-am62d-evm-tas67cd-aec.dtbo
+# Add one of the name_overlays lines above
 
 # Reboot
 reboot
