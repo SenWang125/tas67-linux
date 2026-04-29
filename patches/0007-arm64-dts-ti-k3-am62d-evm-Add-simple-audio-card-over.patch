@@ -1,0 +1,210 @@
+From 3ea5ccf52e963210737884287b1880169f774c50 Mon Sep 17 00:00:00 2001
+From: Sen Wang <sen@ti.com>
+Date: Wed, 29 Apr 2026 16:55:11 -0500
+Subject: [PATCH] arm64: dts: ti: k3-am62d-evm: Add simple-audio-card overlay
+ for TAS67CD-AEC
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Add an alternative DT overlay using simple-audio-card for the TAS67CD-AEC
+daughter card. Uses main audio path only (DAI 0) — LLP/ANC bypass and I/V
+sense feedback capture are excluded.
+
+8 TDM slots: slots 0-3 for TAS0, slots 4-7 for TAS1.
+Only AXR0 TX serializer used; AXR2/AXR3 RX serializers not configured.
+
+Signed-off-by: Sen Wang <sen@ti.com>
+---
+ arch/arm64/boot/dts/ti/Makefile               |   3 +
+ .../ti/k3-am62d-evm-tas67cd-aec-simple.dtso   | 150 ++++++++++++++++++
+ 2 files changed, 153 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/ti/k3-am62d-evm-tas67cd-aec-simple.dtso
+
+diff --git a/arch/arm64/boot/dts/ti/Makefile b/arch/arm64/boot/dts/ti/Makefile
+index 18e161530dfc..5d34e8bd1de9 100644
+--- a/arch/arm64/boot/dts/ti/Makefile
++++ b/arch/arm64/boot/dts/ti/Makefile
+@@ -37,6 +37,7 @@ dtb-$(CONFIG_ARCH_K3) += k3-am62a7-phyboard-lyra-rdk.dtb
+ # Boards with AM62Dx SoC
+ dtb-$(CONFIG_ARCH_K3) += k3-am62d2-evm.dtb
+ dtb-$(CONFIG_ARCH_K3) += k3-am62d-evm-tas67cd-aec.dtbo
++dtb-$(CONFIG_ARCH_K3) += k3-am62d-evm-tas67cd-aec-simple.dtbo
+ 
+ # Boards with AM62Lx SoCs
+ dtb-$(CONFIG_ARCH_K3) += k3-am62l3-evm.dtb
+@@ -187,6 +188,7 @@ k3-am625-sk-hdmi-audio-dtbs := k3-am625-sk.dtb k3-am62x-sk-hdmi-audio.dtbo
+ k3-am62-lp-sk-hdmi-audio-dtbs := k3-am62-lp-sk.dtb k3-am62x-sk-hdmi-audio.dtbo
+ k3-am62-lp-sk-nand-dtbs := k3-am62-lp-sk.dtb k3-am62-lp-sk-nand.dtbo
+ k3-am62d-evm-tas67cd-aec-dtbs := k3-am62d2-evm.dtb k3-am62d-evm-tas67cd-aec.dtbo
++k3-am62d-evm-tas67cd-aec-simple-dtbs := k3-am62d2-evm.dtb k3-am62d-evm-tas67cd-aec-simple.dtbo
+ k3-am62a7-phyboard-lyra-disable-eth-phy-dtbs := k3-am62a7-phyboard-lyra-rdk.dtb \
+ 	k3-am6xx-phycore-disable-eth-phy.dtbo
+ k3-am62a7-phyboard-lyra-disable-rtc-dtbs := k3-am62a7-phyboard-lyra-rdk.dtb \
+@@ -286,6 +288,7 @@ dtb- += k3-am625-beagleplay-csi2-ov5640.dtb \
+ 	k3-am62-lp-sk-hdmi-audio.dtb \
+ 	k3-am62-lp-sk-nand.dtb \
+ 	k3-am62d-evm-tas67cd-aec.dtb \
++	k3-am62d-evm-tas67cd-aec-simple.dtb \
+ 	k3-am62a7-phyboard-lyra-disable-eth-phy.dtb \
+ 	k3-am62a7-phyboard-lyra-disable-rtc.dtb \
+ 	k3-am62a7-phyboard-lyra-disable-spi-nor.dtb \
+diff --git a/arch/arm64/boot/dts/ti/k3-am62d-evm-tas67cd-aec-simple.dtso b/arch/arm64/boot/dts/ti/k3-am62d-evm-tas67cd-aec-simple.dtso
+new file mode 100644
+index 000000000000..6ae56c9d7a45
+--- /dev/null
++++ b/arch/arm64/boot/dts/ti/k3-am62d-evm-tas67cd-aec-simple.dtso
+@@ -0,0 +1,150 @@
++// SPDX-License-Identifier: GPL-2.0-only OR MIT
++/**
++ * DT overlay for TAS67CD-AEC daughter card on AM62D-EVM's AEC1 connector.
++ *
++ * Uses simple-audio-card with main audio path only.
++ * LLP (ANC bypass) and I/V sense feedback capture are excluded.
++ * 8 TDM slots: slots 0-3 for TAS0, slots 4-7 for TAS1.
++ *
++ * Copyright (C) 2026 Texas Instruments Incorporated - https://www.ti.com/
++ */
++
++/dts-v1/;
++/plugin/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include "k3-pinctrl.h"
++
++&{/} {
++	tas67cd_dvdd: regulator-tas67cd-dvdd {
++		compatible = "regulator-fixed";
++		regulator-name = "tas67cd-dvdd";
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-always-on;
++		regulator-boot-on;
++	};
++
++	tas67cd_pvdd: regulator-tas67cd-pvdd {
++		compatible = "regulator-fixed";
++		regulator-name = "tas67cd-pvdd";
++		regulator-min-microvolt = <12000000>;
++		regulator-max-microvolt = <12000000>;
++		regulator-always-on;
++	};
++};
++
++&main_pmx0 {
++	mcasp1_tas67cd_pins: mcasp1-tas67cd-pins {
++		pinctrl-single,pins = <
++			AM62DX_IOPAD(0x0124, PIN_INPUT,  1) /* (F22) MMC2_SDCD.MCASP1_ACLKX */
++			AM62DX_IOPAD(0x0128, PIN_INPUT,  1) /* (E21) MMC2_SDWP.MCASP1_AFSX */
++			AM62DX_IOPAD(0x0114, PIN_OUTPUT, 1) /* (E20) MMC2_DAT0.MCASP1_AXR0 */
++		>;
++	};
++
++	tas67cd_stby_pins: tas67cd-stby-pins {
++		pinctrl-single,pins = <
++			AM62DX_IOPAD(0x0088, PIN_OUTPUT, 7) /* (L17) GPMC0_OEn_REn.GPIO0_33 */
++			AM62DX_IOPAD(0x008c, PIN_OUTPUT, 7) /* (K19) GPMC0_WEn.GPIO0_34 */
++		>;
++	};
++};
++
++&mcasp1 {
++	status = "okay";
++	#sound-dai-cells = <0>;
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&mcasp1_tas67cd_pins>;
++
++	assigned-clocks = <&k3_clks 191 0>;
++	assigned-clock-parents = <&k3_clks 191 2>;
++	assigned-clock-rates = <320000000>;
++	auxclk-fs-ratio = <6656>;
++	op-mode = <0>;
++	tdm-slots = <8>;
++	serial-dir = <	/* 0: INACTIVE, 1: TX, 2: RX */
++		1 0 0 0	/* AXR0=TX (TAS0/1 main audio) */
++		0 0 0 0
++		0 0 0 0
++		0 0 0 0
++	>;
++};
++
++&main_i2c2 {
++	#address-cells = <1>;
++	#size-cells = <0>;
++	pinctrl-0 = <&main_i2c2_pins_default &tas67cd_stby_pins>;
++
++	tas6754_0: tas6754@70 {
++		compatible = "ti,tas6754";
++		reg = <0x70>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "TAS0";
++
++		dvdd-supply = <&buck3>;
++		pvdd-supply = <&tas67cd_pvdd>;
++
++		stby-gpios = <&main_gpio0 33 GPIO_ACTIVE_LOW>;
++
++		ti,audio-slot-no = <0>;
++		ti,gpio1-function = "mute";
++	};
++
++	tas6754_1: tas6754@71 {
++		compatible = "ti,tas6754";
++		reg = <0x71>;
++		#sound-dai-cells = <1>;
++		sound-name-prefix = "TAS1";
++
++		dvdd-supply = <&buck3>;
++		pvdd-supply = <&tas67cd_pvdd>;
++
++		stby-gpios = <&main_gpio0 34 GPIO_ACTIVE_LOW>;
++
++		ti,audio-slot-no = <4>;
++		ti,gpio1-function = "mute";
++	};
++};
++
++&{/} {
++	sound_tas67cd: sound-tas67cd {
++		compatible = "simple-audio-card";
++		simple-audio-card,name = "TAS67CD-AEC";
++
++		simple-audio-card,widgets =
++			"Speaker", "TAS0 Speaker",
++			"Speaker", "TAS1 Speaker";
++
++		simple-audio-card,routing =
++			"TAS0 Speaker",      "TAS0 OUT_CH1",
++			"TAS0 Speaker",      "TAS0 OUT_CH2",
++			"TAS0 Speaker",      "TAS0 OUT_CH3",
++			"TAS0 Speaker",      "TAS0 OUT_CH4",
++			"TAS1 Speaker",      "TAS1 OUT_CH1",
++			"TAS1 Speaker",      "TAS1 OUT_CH2",
++			"TAS1 Speaker",      "TAS1 OUT_CH3",
++			"TAS1 Speaker",      "TAS1 OUT_CH4",
++			"TAS0 SPEAKER_LOAD", "TAS0 Speaker",
++			"TAS1 SPEAKER_LOAD", "TAS1 Speaker";
++
++		simple-audio-card,dai-link {
++			format = "dsp_b";
++			bitclock-master = <&link_cpu>;
++			frame-master = <&link_cpu>;
++
++			link_cpu: cpu {
++				sound-dai = <&mcasp1>;
++			};
++
++			codec@0 {
++				sound-dai = <&tas6754_0 0>;
++			};
++
++			codec@1 {
++				sound-dai = <&tas6754_1 0>;
++			};
++		};
++	};
++};
+-- 
+2.43.0
+

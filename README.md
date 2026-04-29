@@ -2,7 +2,7 @@
 
 This repo contains the Linux driver for the **TI TAS67524-Q1** (TAS675x family) - a quad-channel Class-D audio amplifier with onboard DSP and load diagnostics. The patches are based on linux-next and are being prepared for upstream submission.
 
-> **Branch:** `main` - 6 patches on top of `next-20260320`
+> **Branch:** `main` - 7 patches on top of `next-20260320`
 
 ---
 
